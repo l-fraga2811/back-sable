@@ -4,12 +4,11 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/l-fraga2811/back-sable/internal/repository/supabase"
 )
 
 // SupabaseAuthMiddleware checks for a valid Supabase JWT token
-// This is a placeholder implementation. You will need to integrate the actual Supabase client
-// or a JWT validator to verify the token signature against your Supabase project secret.
-func SupabaseAuthMiddleware() fiber.Handler {
+func SupabaseAuthMiddleware(validator *supabase.TokenValidator) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
@@ -25,15 +24,19 @@ func SupabaseAuthMiddleware() fiber.Handler {
 			})
 		}
 
-		token := parts[1]
+		tokenString := parts[1]
 
-		// TODO: Validate 'token' using Supabase Go client or JWT library
-		// user, err := supabaseClient.Auth.User(token)
-		// if err != nil { ... }
+		claims, err := validator.Validate(tokenString)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid or expired token",
+			})
+		}
 
-		// For now, we'll just pass the token to the context for valid requests
-		// In a real app, you would set the User ID or object here
-		c.Locals("user_token", token)
+		// Set user context
+		c.Locals("userID", claims.Subject)
+		c.Locals("email", claims.Email)
+		c.Locals("token", tokenString)
 
 		return c.Next()
 	}

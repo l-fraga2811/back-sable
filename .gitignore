@@ -18,6 +18,10 @@ main
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+/bin
+/bin/server
+/bin/main
+
 # Environment variables
 .env
 .env.local
