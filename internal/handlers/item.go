@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -143,8 +144,7 @@ func (h *ItemHandler) Update(c fiber.Ctx) error {
 	if req.Price != 0 {
 		payload.Price = &req.Price
 	}
-	// Note: Boolean zero value is false, so we might need a pointer in request struct to distinguish between explicit false and zero value
-	// For simplicity, assuming Completed is updated only if explicitly set in a real scenario or passed as pointer
+
 	payload.Completed = &req.Completed
 
 	updatedRow, updated, err := h.client.UpdateItem(c.Context(), accessToken, itemID, payload)
@@ -164,14 +164,17 @@ func (h *ItemHandler) Update(c fiber.Ctx) error {
 }
 
 func (h *ItemHandler) Delete(c fiber.Ctx) error {
+	fmt.Println("Debug: Delete handler entered")
 	_, accessToken, ok := h.requireAuth(c)
 	if !ok {
 		return nil
 	}
 
 	itemID := c.Params("id")
+	fmt.Printf("Debug: Deleting item %s\n", itemID)
 	deleted, err := h.client.DeleteItem(c.Context(), accessToken, itemID)
 	if err != nil {
+		fmt.Printf("Debug: DeleteItem error: %v\n", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error deleting item"})
 	}
 	if !deleted {

@@ -3,7 +3,6 @@ package config
 import (
 	"log"
 	"os"
-	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -24,15 +23,15 @@ func LoadConfig() *Config {
 		log.Println("No .env file found, using system environment variables")
 	}
 
-	supabaseURL := getEnv("SUPABASE_URL", "")
+
 	jwksURL := getEnv("SUPABASE_JWKS_URL", "")
-	if jwksURL == "" && supabaseURL != "" {
-		jwksURL = strings.TrimRight(supabaseURL, "/") + "/auth/v1/.well-known/jwks.json"
+	if jwksURL == "" {
+		jwksURL = getEnv("NEXT_PUBLIC_SUPABASE_JWKS_URL", "")
 	}
 
 	return &Config{
 		Port:           getEnv("PORT", "3000"),
-		SupabaseURL:    supabaseURL,
+		SupabaseURL:    getEnv("SUPABASE_URL", ""),
 		SupabaseKey:    getEnv("SUPABASE_KEY", ""),
 		JwksURL:        jwksURL,
 		JwtSecret:      getEnv("SUPABASE_JWT_SECRET", ""),

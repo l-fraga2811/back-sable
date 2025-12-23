@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -30,7 +31,7 @@ func NewClient(cfg *config.Config) *Client {
 
 // ItemRow represents the database row structure
 type ItemRow struct {
-	ID          string  `json:"id"`
+	ID          string  `json:"itemId"`
 	UserID      string  `json:"user_id"`
 	Title       string  `json:"title"`
 	Description string  `json:"description"`
@@ -57,6 +58,53 @@ type UpdateItemPayload struct {
 	Completed   *bool    `json:"completed,omitempty"`
 }
 
+type AuthResponse struct {
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+	User         User   `json:"user"`
+}
+
+type User struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}
+
+type SignInCredentials struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type SignUpCredentials struct {
+	Email    string                 `json:"email"`
+	Password string                 `json:"password"`
+	Data     map[string]interface{} `json:"data"`
+}
+
+func (c *Client) SignIn(ctx context.Context, creds SignInCredentials) (AuthResponse, error) {
+	var response AuthResponse
+	// Supabase Auth endpoint: /auth/v1/token?grant_type=password
+	q := url.Values{}
+	q.Set("grant_type", "password")
+
+	err := c.doJSON(ctx, http.MethodPost, "/auth/v1/token", "", q, creds, &response, nil)
+	if err != nil {
+		return AuthResponse{}, err
+	}
+	return response, nil
+}
+
+func (c *Client) SignUp(ctx context.Context, creds SignUpCredentials) (AuthResponse, error) {
+	var response AuthResponse
+	// Supabase Auth endpoint: /auth/v1/signup
+	err := c.doJSON(ctx, http.MethodPost, "/auth/v1/signup", "", nil, creds, &response, nil)
+	if err != nil {
+		return AuthResponse{}, err
+	}
+	return response, nil
+}
+
 func (c *Client) ListItems(ctx context.Context, accessToken string) ([]ItemRow, error) {
 	q := url.Values{}
 	q.Set("select", "*")
@@ -67,7 +115,7 @@ func (c *Client) ListItems(ctx context.Context, accessToken string) ([]ItemRow, 
 func (c *Client) GetItemByID(ctx context.Context, accessToken string, id string) (ItemRow, bool, error) {
 	q := url.Values{}
 	q.Set("select", "*")
-	q.Set("id", "eq."+id)
+	q.Set("itemId", "eq."+id)
 
 	items, err := c.getItems(ctx, accessToken, q)
 	if err != nil {
@@ -93,7 +141,7 @@ func (c *Client) CreateItem(ctx context.Context, accessToken string, payload Cre
 
 func (c *Client) UpdateItem(ctx context.Context, accessToken string, id string, payload UpdateItemPayload) (ItemRow, bool, error) {
 	q := url.Values{}
-	q.Set("id", "eq."+id)
+	q.Set("itemId", "eq."+id)
 
 	var updated []ItemRow
 	err := c.doJSON(ctx, http.MethodPatch, "/rest/v1/items", accessToken, q, payload, &updated, map[string]string{"Prefer": "return=representation"})
@@ -108,7 +156,7 @@ func (c *Client) UpdateItem(ctx context.Context, accessToken string, id string, 
 
 func (c *Client) DeleteItem(ctx context.Context, accessToken string, id string) (bool, error) {
 	q := url.Values{}
-	q.Set("id", "eq."+id)
+	q.Set("itemId", "eq."+id)
 
 	var deleted []ItemRow
 	if err := c.doJSON(ctx, http.MethodDelete, "/rest/v1/items", accessToken, q, nil, &deleted, map[string]string{"Prefer": "return=representation"}); err != nil {
@@ -149,12 +197,15 @@ func (c *Client) doJSON(ctx context.Context, method string, path string, accessT
 		if len(b) == 0 {
 			return errors.New("supabase request failed")
 		}
+		// Log the error for debugging
+		fmt.Printf("Supabase Error [Status %d]: %s\n", resp.StatusCode, string(b))
 		return errors.New(string(b))
 	}
 
 	if out == nil {
 		return nil
 	}
+
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 

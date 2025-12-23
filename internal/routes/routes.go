@@ -14,11 +14,15 @@ func SetupRoutes(app *fiber.App, validator *supabase.TokenValidator, client *sup
 	healthHandler := handlers.NewHealthHandler()
 	api.Get("/health", healthHandler.Check)
 
+	// Auth Routes (Public)
+	authHandler := handlers.NewAuthHandler(client)
+	api.Post("/auth/login", authHandler.Login)
+	api.Post("/auth/register", authHandler.Register)
+
 	// Protected Routes Group
 	protected := api.Group("/", middleware.SupabaseAuthMiddleware(validator))
 
-	// Auth Handler
-	authHandler := handlers.NewAuthHandler()
+	// Auth Handler (Protected)
 	protected.Get("/auth/profile", authHandler.GetProfile)
 
 	// Item Routes

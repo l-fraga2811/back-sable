@@ -29,8 +29,9 @@ func main() {
 	app.Use(logger.New())
 	app.Use(recover.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"*"}, // TODO: Restrict this in production
+		AllowOrigins: []string{"*"},
 		AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 	}))
 
 	// Setup Routes
