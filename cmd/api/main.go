@@ -23,12 +23,14 @@ func main() {
 	tokenValidator := supabase.NewTokenValidator(cfg)
 	supabaseClient := supabase.NewClient(cfg)
 
+	// Initialize Global Auth Handlers
+	handlers.InitAuthHandlers(supabaseClient)
+
 	// Initialize GORM Repository
 	itemRepo := repository.NewItemRepositoryGORM(cfg.DB)
 
 	// Initialize Handlers
 	itemHandler := handlers.NewItemHandler(itemRepo)
-	authHandler := handlers.NewAuthHandler(supabaseClient)
 	healthHandler := handlers.NewHealthHandler()
 
 	// Initialize Fiber
@@ -46,7 +48,7 @@ func main() {
 	}))
 
 	// Setup Routes
-	routes.SetupRoutes(app, tokenValidator, itemHandler, authHandler, healthHandler)
+	routes.SetupRoutes(app, tokenValidator, itemHandler, nil, healthHandler)
 
 	// Start Server
 	log.Printf("Server starting on port %s", cfg.Port)

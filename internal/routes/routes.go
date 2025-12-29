@@ -11,16 +11,17 @@ import (
 func SetupRoutes(app *fiber.App, tokenValidator *supabase.TokenValidator, itemHandler *handlers.ItemHandler, authHandler *handlers.AuthHandler, healthHandler *handlers.HealthHandler) {
 	api := app.Group("/api")
 
-	// Auth routes (mantidos)
+	// Auth routes - usando funções globais
 	auth := api.Group("/auth")
-	auth.Post("/signin", authHandler.Login)
-	auth.Post("/signup", authHandler.Register)
+	auth.Post("/signin", handlers.SignIn)
+	auth.Post("/signup", handlers.SignUp)
+	auth.Get("/profile", middleware.SupabaseAuthMiddleware(tokenValidator), handlers.GetProfile)
 
 	// Protected routes
 	protected := api.Group("/")
 	protected.Use(middleware.SupabaseAuthMiddleware(tokenValidator))
 
-	// Item routes (agora com GORM)
+	// Item routes
 	items := protected.Group("/items")
 	items.Get("/", itemHandler.GetAll)
 	items.Post("/", itemHandler.Create)
