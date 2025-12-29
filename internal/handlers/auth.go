@@ -149,10 +149,11 @@ func (h *AuthHandler) GetProfile(c fiber.Ctx) error {
 	}
 
 	email, _ := c.Locals("email").(string)
+	username, _ := c.Locals("username").(string)
 
 	return c.JSON(userResponse{
 		ID:       userID,
-		Username: "",
+		Username: username,
 		Email:    email,
 	})
 }

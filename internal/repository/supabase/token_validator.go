@@ -25,8 +25,24 @@ func NewTokenValidator(cfg *config.Config) *TokenValidator {
 
 type AccessTokenClaims struct {
 	jwt.RegisteredClaims
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	Email        string                 `json:"email"`
+	Role         string                 `json:"role"`
+	UserMetadata map[string]interface{} `json:"user_metadata"`
+}
+
+func (c AccessTokenClaims) Username() string {
+	if c.UserMetadata == nil {
+		return ""
+	}
+	value, ok := c.UserMetadata["username"]
+	if !ok {
+		return ""
+	}
+	username, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return username
 }
 
 func (v *TokenValidator) Validate(tokenString string) (AccessTokenClaims, error) {
