@@ -23,11 +23,12 @@ func main() {
 	tokenValidator := supabase.NewTokenValidator(cfg)
 	supabaseClient := supabase.NewClient(cfg)
 
-	// Initialize Global Auth Handlers
-	handlers.InitAuthHandlers(supabaseClient)
-
 	// Initialize GORM Repository
 	itemRepo := repository.NewItemRepositoryGORM(cfg.DB)
+	profileRepo := repository.NewProfileRepositoryGorm(cfg.DB)
+
+	// Initialize Global Auth Handlers
+	handlers.InitAuthHandlers(handlers.NewAuthHandlerWithProfileRepo(supabaseClient, profileRepo))
 
 	// Initialize Handlers
 	itemHandler := handlers.NewItemHandler(itemRepo)

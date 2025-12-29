@@ -67,8 +67,9 @@ type AuthResponse struct {
 }
 
 type User struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
+	ID           string                 `json:"id"`
+	Email        string                 `json:"email"`
+	UserMetadata map[string]interface{} `json:"user_metadata"`
 }
 
 type SignInCredentials struct {

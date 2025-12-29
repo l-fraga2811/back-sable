@@ -1,16 +1,18 @@
 package handlers
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/l-fraga2811/back-sable/internal/repository"
 	"github.com/l-fraga2811/back-sable/internal/repository/supabase"
 )
 
 var globalAuthHandler *AuthHandler
 
-func InitAuthHandlers(client *supabase.Client) {
-	globalAuthHandler = NewAuthHandler(client)
+func InitAuthHandlers(handler *AuthHandler) {
+	globalAuthHandler = handler
 }
 
 func SignIn(c fiber.Ctx) error {
@@ -41,12 +43,20 @@ func GetProfile(c fiber.Ctx) error {
 }
 
 type AuthHandler struct {
-	client *supabase.Client
+	client      *supabase.Client
+	profileRepo repository.ProfileRepository
 }
 
 func NewAuthHandler(client *supabase.Client) *AuthHandler {
 	return &AuthHandler{
 		client: client,
+	}
+}
+
+func NewAuthHandlerWithProfileRepo(client *supabase.Client, profileRepo repository.ProfileRepository) *AuthHandler {
+	return &AuthHandler{
+		client:      client,
+		profileRepo: profileRepo,
 	}
 }
 
@@ -56,15 +66,19 @@ type loginRequest struct {
 }
 
 type registerRequest struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	Phone      string `json:"phone"`
+	ProfileUrl string `json:"profileUrl"`
 }
 
 type userResponse struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	ID         string `json:"id"`
+	Username   string `json:"username"`
+	Email      string `json:"email"`
+	Phone      string `json:"phone"`
+	ProfileUrl string `json:"profileUrl"`
 }
 
 type authResponse struct {
@@ -97,14 +111,26 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		expiresAt = time.Now().Add(time.Duration(response.ExpiresIn) * time.Second).UTC().Format(time.RFC3339)
 	}
 
+	username := ""
+	if response.User.UserMetadata != nil {
+		fmt.Println(response)
+		if usernameValue, ok := response.User.UserMetadata["username"]; ok {
+			if usernameStr, ok := usernameValue.(string); ok {
+				username = usernameStr
+			}
+		}
+	}
+
 	return c.JSON(authResponse{
 		Message:   "Login realizado com sucesso",
 		Token:     response.AccessToken,
 		ExpiresAt: expiresAt,
 		User: userResponse{
-			ID:       response.User.ID,
-			Username: "",
-			Email:    response.User.Email,
+			ID:         response.User.ID,
+			Username:   username,
+			Email:      response.User.Email,
+			Phone:      response.User.UserMetadata["phone"].(string),
+			ProfileUrl: response.User.UserMetadata["profile_url"].(string),
 		},
 	})
 }
@@ -121,7 +147,9 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		Email:    req.Email,
 		Password: req.Password,
 		Data: map[string]interface{}{
-			"username": req.Username,
+			"username":    req.Username,
+			"phone":       req.Phone,
+			"profile_url": req.ProfileUrl,
 		},
 	})
 	if err != nil {
@@ -133,9 +161,11 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{
 		"message": "Usuário criado com sucesso",
 		"user": userResponse{
-			ID:       response.User.ID,
-			Username: req.Username,
-			Email:    response.User.Email,
+			ID:         response.User.ID,
+			Username:   req.Username,
+			Email:      response.User.Email,
+			Phone:      req.Phone,
+			ProfileUrl: req.ProfileUrl,
 		},
 	})
 }
@@ -151,9 +181,38 @@ func (h *AuthHandler) GetProfile(c fiber.Ctx) error {
 	email, _ := c.Locals("email").(string)
 	username, _ := c.Locals("username").(string)
 
-	return c.JSON(userResponse{
-		ID:       userID,
-		Username: username,
-		Email:    email,
+	if h.profileRepo == nil {
+		return c.Status(fiber.StatusOK).JSON(userResponse{
+			ID:         userID,
+			Username:   username,
+			Email:      email,
+			Phone:      "",
+			ProfileUrl: "",
+		})
+	}
+
+	profile, err := h.profileRepo.GetByID(userID)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "failed to load profile",
+		})
+	}
+
+	if profile == nil {
+		return c.Status(fiber.StatusOK).JSON(userResponse{
+			ID:         userID,
+			Username:   username,
+			Email:      email,
+			Phone:      "",
+			ProfileUrl: "",
+		})
+	}
+
+	return c.Status(fiber.StatusOK).JSON(userResponse{
+		ID:         userID,
+		Username:   profile.Username,
+		Email:      email,
+		Phone:      profile.Phone,
+		ProfileUrl: profile.ProfileUrl,
 	})
 }
