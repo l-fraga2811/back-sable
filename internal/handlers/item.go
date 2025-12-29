@@ -1,223 +1,147 @@
 package handlers
 
 import (
-	"fmt"
-	"time"
-
-	"github.com/gofiber/fiber/v3"
-	"github.com/l-fraga2811/back-sable/internal/models"
-	"github.com/l-fraga2811/back-sable/internal/repository/supabase"
+    "github.com/gofiber/fiber/v3"
+    "github.com/l-fraga2811/back-sable/internal/models"
+    "github.com/l-fraga2811/back-sable/internal/repository"
 )
 
 type ItemHandler struct {
-	client *supabase.Client
+    itemRepo repository.ItemRepository
 }
 
-func NewItemHandler(client *supabase.Client) *ItemHandler {
-	return &ItemHandler{
-		client: client,
-	}
+func NewItemHandler(itemRepo repository.ItemRepository) *ItemHandler {
+    return &ItemHandler{
+        itemRepo: itemRepo,
+    }
 }
 
 func (h *ItemHandler) Create(c fiber.Ctx) error {
-	userID, accessToken, ok := h.requireAuth(c)
-	if !ok {
-		return nil
-	}
+    userID := h.requireAuth(c)
+    if userID == "" {
+        return nil
+    }
 
-	var req models.CreateItemRequest
-	if err := c.Bind().Body(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid data: " + err.Error()})
-	}
+    var req models.CreateItemRequest
+    if err := c.Bind().Body(&req); err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid data: " + err.Error()})
+    }
 
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	payload := supabase.CreateItemPayload{
-		UserID:      userID,
-		Title:       req.Title,
-		Description: req.Description,
-		Price:       req.Price,
-		Completed:   false,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}
+    item := &models.Item{
+        UserID:      userID,
+        Title:       req.Title,
+        Description: req.Description,
+        Price:       req.Price,
+        Completed:   false,
+    }
 
-	created, err := h.client.CreateItem(c.Context(), accessToken, payload)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error creating item"})
-	}
+    if err := h.itemRepo.Create(item); err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error creating item"})
+    }
 
-	item, err := h.mapItemRow(created)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error processing item"})
-	}
-
-	return c.Status(fiber.StatusCreated).JSON(item)
+    return c.Status(fiber.StatusCreated).JSON(item)
 }
 
 func (h *ItemHandler) GetAll(c fiber.Ctx) error {
-	_, accessToken, ok := h.requireAuth(c)
-	if !ok {
-		return nil
-	}
+    userID := h.requireAuth(c)
+    if userID == "" {
+        return nil
+    }
 
-	rows, err := h.client.ListItems(c.Context(), accessToken)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error fetching items"})
-	}
+    items, err := h.itemRepo.GetAll(userID)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error fetching items"})
+    }
 
-	items := make([]models.Item, 0, len(rows))
-	for _, row := range rows {
-		item, err := h.mapItemRow(row)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error processing items"})
-		}
-		items = append(items, item)
-	}
-
-	return c.JSON(items)
+    return c.JSON(items)
 }
 
 func (h *ItemHandler) GetByID(c fiber.Ctx) error {
-	userID, accessToken, ok := h.requireAuth(c)
-	if !ok {
-		return nil
-	}
+    userID := h.requireAuth(c)
+    if userID == "" {
+        return nil
+    }
 
-	itemID := c.Params("id")
-	row, found, err := h.client.GetItemByID(c.Context(), accessToken, itemID)
+    itemID := c.Params("id")
+    item, err := h.itemRepo.GetByID(itemID)
+    if err != nil {
+        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
+    }
 
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error fetching item"})
-	}
+    if item.UserID != userID {
+        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You do not have permission to access this item"})
+    }
 
-	if !found {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
-	}
-
-	item, err := h.mapItemRow(row)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error processing item"})
-	}
-
-	if item.UserID != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You do not have permission to access this item"})
-	}
-
-	return c.JSON(item)
+    return c.JSON(item)
 }
 
 func (h *ItemHandler) Update(c fiber.Ctx) error {
-	userID, accessToken, ok := h.requireAuth(c)
-	if !ok {
-		return nil
-	}
+    userID := h.requireAuth(c)
+    if userID == "" {
+        return nil
+    }
 
-	itemID := c.Params("id")
-	row, found, err := h.client.GetItemByID(c.Context(), accessToken, itemID)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error fetching item"})
-	}
-	if !found {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
-	}
+    itemID := c.Params("id")
+    item, err := h.itemRepo.GetByID(itemID)
+    if err != nil {
+        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
+    }
 
-	item, err := h.mapItemRow(row)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error processing item"})
-	}
-	if item.UserID != userID {
-		return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You do not have permission to update this item"})
-	}
+    if item.UserID != userID {
+        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You do not have permission to update this item"})
+    }
 
-	var req models.UpdateItemRequest
-	if err := c.Bind().Body(&req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid data: " + err.Error()})
-	}
+    var req models.UpdateItemRequest
+    if err := c.Bind().Body(&req); err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid data: " + err.Error()})
+    }
 
-	payload := supabase.UpdateItemPayload{}
-	if req.Title != "" {
-		payload.Title = &req.Title
-	}
-	if req.Description != "" {
-		payload.Description = &req.Description
-	}
-	if req.Price != 0 {
-		payload.Price = &req.Price
-	}
+    if req.Title != "" {
+        item.Title = req.Title
+    }
+    if req.Description != "" {
+        item.Description = req.Description
+    }
+    if req.Price != 0 {
+        item.Price = req.Price
+    }
+    item.Completed = req.Completed
 
-	payload.Completed = &req.Completed
+    if err := h.itemRepo.Update(item); err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error updating item"})
+    }
 
-	updatedRow, updated, err := h.client.UpdateItem(c.Context(), accessToken, itemID, payload)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error updating item"})
-	}
-	if !updated {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
-	}
-
-	updatedItem, err := h.mapItemRow(updatedRow)
-	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error processing item"})
-	}
-
-	return c.JSON(updatedItem)
+    return c.JSON(item)
 }
 
 func (h *ItemHandler) Delete(c fiber.Ctx) error {
-	fmt.Println("Debug: Delete handler entered")
-	_, accessToken, ok := h.requireAuth(c)
-	if !ok {
-		return nil
-	}
+    userID := h.requireAuth(c)
+    if userID == "" {
+        return nil
+    }
 
-	itemID := c.Params("id")
-	fmt.Printf("Debug: Deleting item %s\n", itemID)
-	deleted, err := h.client.DeleteItem(c.Context(), accessToken, itemID)
-	if err != nil {
-		fmt.Printf("Debug: DeleteItem error: %v\n", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error deleting item"})
-	}
-	if !deleted {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
-	}
+    itemID := c.Params("id")
+    item, err := h.itemRepo.GetByID(itemID)
+    if err != nil {
+        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Item not found"})
+    }
 
-	return c.JSON(fiber.Map{"message": "Item deleted successfully"})
+    if item.UserID != userID {
+        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "You do not have permission to delete this item"})
+    }
+
+    if err := h.itemRepo.Delete(itemID); err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Error deleting item"})
+    }
+
+    return c.JSON(fiber.Map{"message": "Item deleted successfully"})
 }
 
-func (h *ItemHandler) requireAuth(c fiber.Ctx) (string, string, bool) {
-	userID, ok := c.Locals("userID").(string)
-	if !ok || userID == "" {
-		c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User not authenticated"})
-		return "", "", false
-	}
-
-	token, ok := c.Locals("token").(string)
-	if !ok || token == "" {
-		c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User not authenticated"})
-		return "", "", false
-	}
-
-	return userID, token, true
-}
-
-func (h *ItemHandler) mapItemRow(row supabase.ItemRow) (models.Item, error) {
-	createdAt, err := time.Parse(time.RFC3339Nano, row.CreatedAt)
-	if err != nil {
-		return models.Item{}, err
-	}
-	updatedAt, err := time.Parse(time.RFC3339Nano, row.UpdatedAt)
-	if err != nil {
-		return models.Item{}, err
-	}
-
-	return models.Item{
-		ID:          row.ID,
-		Title:       row.Title,
-		Description: row.Description,
-		Price:       row.Price,
-		Completed:   row.Completed,
-		CreatedAt:   createdAt,
-		UpdatedAt:   updatedAt,
-		UserID:      row.UserID,
-	}, nil
+func (h *ItemHandler) requireAuth(c fiber.Ctx) string {
+    userID, ok := c.Locals("userID").(string)
+    if !ok || userID == "" {
+        c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "User not authenticated"})
+        return ""
+    }
+    return userID
 }
