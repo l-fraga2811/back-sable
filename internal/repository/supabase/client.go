@@ -69,6 +69,7 @@ type AuthResponse struct {
 type User struct {
 	ID    string `json:"id"`
 	Email string `json:"email"`
+	Phone string `json:"phone"`
 }
 
 type SignInCredentials struct {
@@ -80,6 +81,7 @@ type SignUpCredentials struct {
 	Email    string                 `json:"email"`
 	Password string                 `json:"password"`
 	Data     map[string]interface{} `json:"data"`
+	Phone    string                 `json:"phone,omitempty"`
 }
 
 func (c *Client) SignIn(ctx context.Context, creds SignInCredentials) (AuthResponse, error) {

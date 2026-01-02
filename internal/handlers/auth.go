@@ -41,6 +41,23 @@ func (h *AuthHandler) Register(c fiber.Ctx) error {
 		})
 	}
 
+	// Extract additional fields from request body
+	var requestBody map[string]interface{}
+	if err := c.Bind().Body(&requestBody); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "Invalid request body",
+		})
+	}
+
+	// Map frontend fields to Supabase data structure
+	creds.Data = make(map[string]interface{})
+	if username, ok := requestBody["username"]; ok {
+		creds.Data["username"] = username
+	}
+	if phone, ok := requestBody["phone"]; ok && phone != "" {
+		creds.Data["phone"] = phone
+	}
+
 	response, err := h.client.SignUp(c.Context(), creds)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{

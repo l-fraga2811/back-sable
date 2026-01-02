@@ -16,8 +16,8 @@ func SetupRoutes(app *fiber.App, validator *supabase.TokenValidator, client *sup
 
 	// Auth Routes (Public)
 	authHandler := handlers.NewAuthHandler(client)
-	api.Post("/auth/login", authHandler.Login)
-	api.Post("/auth/register", authHandler.Register)
+	api.Post("/auth/signin", authHandler.Login)
+	api.Post("/auth/signup", authHandler.Register)
 
 	// Protected Routes Group
 	protected := api.Group("/", middleware.SupabaseAuthMiddleware(validator))
