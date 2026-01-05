@@ -121,6 +121,24 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 		}
 	}
 
+	phone := ""
+	if response.User.UserMetadata != nil {
+		if phoneValue, ok := response.User.UserMetadata["phone"]; ok {
+			if phoneStr, ok := phoneValue.(string); ok {
+				phone = phoneStr
+			}
+		}
+	}
+
+	profileUrl := ""
+	if response.User.UserMetadata != nil {
+		if profileValue, ok := response.User.UserMetadata["profile_url"]; ok {
+			if profileStr, ok := profileValue.(string); ok {
+				profileUrl = profileStr
+			}
+		}
+	}
+
 	return c.JSON(authResponse{
 		Message:   "Login realizado com sucesso",
 		Token:     response.AccessToken,
@@ -129,8 +147,8 @@ func (h *AuthHandler) Login(c fiber.Ctx) error {
 			ID:         response.User.ID,
 			Username:   username,
 			Email:      response.User.Email,
-			Phone:      response.User.UserMetadata["phone"].(string),
-			ProfileUrl: response.User.UserMetadata["profile_url"].(string),
+			Phone:      phone,
+			ProfileUrl: profileUrl,
 		},
 	})
 }
