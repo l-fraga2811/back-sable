@@ -36,6 +36,7 @@ func SupabaseAuthMiddleware(validator *supabase.TokenValidator) fiber.Handler {
 		// Set user context
 		c.Locals("userID", claims.Subject)
 		c.Locals("email", claims.Email)
+		c.Locals("username", claims.Username())
 		c.Locals("token", tokenString)
 
 		return c.Next()

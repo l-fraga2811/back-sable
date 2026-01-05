@@ -1,3 +1,4 @@
+// cmd/api/main.go
 package main
 
 import (
@@ -8,6 +9,8 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/logger"
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/l-fraga2811/back-sable/internal/config"
+	"github.com/l-fraga2811/back-sable/internal/handlers"
+	"github.com/l-fraga2811/back-sable/internal/repository"
 	"github.com/l-fraga2811/back-sable/internal/repository/supabase"
 	"github.com/l-fraga2811/back-sable/internal/routes"
 )
@@ -17,8 +20,19 @@ func main() {
 	cfg := config.LoadConfig()
 
 	// Initialize Dependencies
-	supabaseClient := supabase.NewClient(cfg)
 	tokenValidator := supabase.NewTokenValidator(cfg)
+	supabaseClient := supabase.NewClient(cfg)
+
+	// Initialize GORM Repository
+	itemRepo := repository.NewItemRepositoryGORM(cfg.DB)
+	profileRepo := repository.NewProfileRepositoryGorm(cfg.DB)
+
+	// Initialize Global Auth Handlers
+	handlers.InitAuthHandlers(handlers.NewAuthHandlerWithProfileRepo(supabaseClient, profileRepo))
+
+	// Initialize Handlers
+	itemHandler := handlers.NewItemHandler(itemRepo)
+	healthHandler := handlers.NewHealthHandler()
 
 	// Initialize Fiber
 	app := fiber.New(fiber.Config{
@@ -35,7 +49,7 @@ func main() {
 	}))
 
 	// Setup Routes
-	routes.SetupRoutes(app, tokenValidator, supabaseClient)
+	routes.SetupRoutes(app, tokenValidator, itemHandler, nil, healthHandler)
 
 	// Start Server
 	log.Printf("Server starting on port %s", cfg.Port)
